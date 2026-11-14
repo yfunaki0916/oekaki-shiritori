@@ -142,6 +142,10 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
         <li>こうたいして、こたえの さいごの もじから はじまる えを かく</li>
       </ol>
     </div>
+    <div id="resume" class="card stack" hidden>
+      <div class="note" id="resumeInfo"></div>
+      <button class="main" id="btnResume" type="button">つづきから あそぶ</button>
+    </div>
     <div class="card stack">
       <div class="row">
         <div class="grow"><label for="name0">さきに かく ひと</label><input type="text" id="name0" value="ひとりめ" maxlength="10" autocomplete="off"></div>
@@ -248,13 +252,13 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   var $ = function(id){ return document.getElementById(id); };
 
   function fresh(){
-    return {phase:"start", names:["ひとりめ","ふたりめ"], scores:[0,0], drawer:0, need:null,
+    return {id:0, phase:"start", names:["ひとりめ","ふたりめ"], scores:[0,0], drawer:0, need:null,
             answer:"", tries:0, history:[], strokes:[], last:null, loser:null};
   }
   var S = fresh();
   var pen = {color:COLORS[0][1], size:14, eraser:false};
   var confirmN = null, endArmed = 0, giveArmed = 0, delArmed = 0, logView = null;
-  var KEY = "oekaki-shiritori-games-v1", KEEP = 20;
+  var KEY = "oekaki-shiritori-games-v1", CUR = "oekaki-shiritori-current-v1", KEEP = 20;
 
   /* ---------- 記録（この端末のブラウザの中だけ） ---------- */
   function loadGames(){
@@ -267,13 +271,37 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       catch (_) { if (g.length <= 1) return false; g.shift(); }
     }
   }
+  /* 1枚終わるごとに呼ぶ。同じゲームの記録は上書きする。 */
   function saveGame(){
-    if (S.saved || !S.history.length) return;
-    S.saved = true;
-    var g = loadGames();
-    g.push({t:Date.now(), names:S.names, scores:S.scores, loser:S.loser, history:S.history});
+    if (!S.history.length) return;
+    var g = loadGames(), at = -1;
+    var rec = {t:S.id, names:S.names, scores:S.scores, loser:S.loser, history:S.history};
+    g.forEach(function(x, k){ if (x && x.t === S.id) at = k; });
+    if (at >= 0) g[at] = rec; else g.push(rec);
     while (g.length > KEEP) g.shift();
     storeGames(g);
+  }
+  /* 途中のゲーム（絵の履歴は記録側にあるので、ここには入れない） */
+  function loadSaved(){
+    try {
+      var c = JSON.parse(localStorage.getItem(CUR) || "null");
+      return (c && c.phase && c.phase !== "start" && c.phase !== "end" && Array.isArray(c.names)) ? c : null;
+    } catch (_) { return null; }
+  }
+  function persist(){
+    if (S.phase === "start") return;
+    if (S.phase === "end"){ try { localStorage.removeItem(CUR); } catch (_) {} return; }
+    var c = {}, k;
+    for (k in S) if (k !== "history") c[k] = S[k];
+    var txt = JSON.stringify(c);
+    for (var n = 0; n < 3; n++){
+      try { localStorage.setItem(CUR, txt); return; }
+      catch (_) {
+        var g = loadGames();
+        if (g.length > 1){ g.shift(); storeGames(g); }
+        else { c.strokes = []; txt = JSON.stringify(c); }
+      }
+    }
   }
   function dayText(t){ var d = new Date(t); return (d.getMonth() + 1) + "がつ " + d.getDate() + "にち"; }
   function goEnd(){ S.phase = "end"; saveGame(); }
@@ -364,7 +392,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
     if (cur.p.length === 2) redrawLast(); else paint(cur, cur.p.length - 1);
   });
   function redrawLast(){ if (cur.e) paint(cur, 1); else paint(cur, 1); }
-  function endStroke(){ cur = null; }
+  function endStroke(){ if (cur){ cur = null; persist(); } }
   cv.addEventListener("pointerup", endStroke);
   cv.addEventListener("pointercancel", endStroke);
 
@@ -389,8 +417,8 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
     b.addEventListener("click", function(){ pen.size = +b.dataset.size; syncTools(); });
   });
   $("btnEraser").addEventListener("click", function(){ pen.eraser = !pen.eraser; syncTools(); });
-  $("btnUndo").addEventListener("click", function(){ S.strokes.pop(); redraw(); });
-  $("btnClear").addEventListener("click", function(){ S.strokes = []; redraw(); });
+  $("btnUndo").addEventListener("click", function(){ S.strokes.pop(); redraw(); persist(); });
+  $("btnClear").addEventListener("click", function(){ S.strokes = []; redraw(); persist(); });
   function syncTools(){
     Array.prototype.forEach.call(document.querySelectorAll(".swatch"), function(b){
       b.setAttribute("aria-pressed", String(!pen.eraser && b.dataset.color === pen.color));
@@ -420,6 +448,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 
   function render(){
     var ph = S.phase;
+    persist();
     if (logView){
       ["p-start","stage","p-draw","p-handoff","p-guess","p-result","p-end","score","btnEnd","btnLog"].forEach(function(id){ show(id, false); });
       show("p-log", true); renderLog(); return;
@@ -520,6 +549,13 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   function openLog(v){ logView = v; render(); window.scrollTo(0, 0); }
 
   function renderPast(){
+    var c = loadSaved();
+    show("resume", !!c);
+    if (c){
+      var cnt = 0;
+      loadGames().forEach(function(x){ if (x && x.t === c.id && Array.isArray(x.history)) cnt = x.history.length; });
+      $("resumeInfo").textContent = "とちゅうの しりとりが あるよ　" + c.names[0] + " " + c.scores[0] + "・" + c.names[1] + " " + c.scores[1] + "　" + cnt + "まい";
+    }
     var g = loadGames(), ul = $("pastList");
     show("past", g.length > 0); ul.textContent = "";
     g.slice().reverse().forEach(function(x){
@@ -552,7 +588,19 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   $("btnStart").addEventListener("click", function(){
     S = fresh();
     S.names = [($("name0").value.trim() || "ひとりめ"), ($("name1").value.trim() || "ふたりめ")];
+    S.id = Date.now();
     S.phase = "draw"; redraw(); render();
+  });
+  $("btnResume").addEventListener("click", function(){
+    var c = loadSaved(); if (!c) { render(); return; }
+    var rec = null;
+    loadGames().forEach(function(x){ if (x && x.t === c.id) rec = x; });
+    c.history = rec && Array.isArray(rec.history) ? rec.history : [];
+    if (!Array.isArray(c.strokes)) c.strokes = [];
+    if (c.phase === "guess") c.phase = "handoff";
+    S = c; logView = null;
+    $("name0").value = S.names[0]; $("name1").value = S.names[1];
+    redraw(); render(); window.scrollTo(0, 0);
   });
 
   function register(){
@@ -587,7 +635,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   function settle(ok){
     if (ok) S.scores[guesser()]++;
     S.history.push({word:S.answer, img:thumb(), by:S.drawer, ok:ok});
-    S.last = {ok:ok}; S.phase = "result"; render();
+    S.last = {ok:ok}; S.phase = "result"; saveGame(); render();
   }
   function guess(){
     var g = norm($("guess").value), msg = $("guessMsg");
@@ -635,6 +683,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   function start(data){
     if (data && data.phase && Array.isArray(data.names)){
       S = data;
+      if (!S.id) S.id = Date.now();
       $("name0").value = S.names[0]; $("name1").value = S.names[1];
     }
     syncTools(); redraw(); render();
