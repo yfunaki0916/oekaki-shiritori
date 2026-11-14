@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>お絵かきしりとり</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* 設計：教室の黒板。中央1カラム、黒板が主役で周りは静かに。色はチョークの色だけ。 */
+:root{
+  color-scheme: light;
+  --wall:#dfe6e1;        /* 教室の壁 */
+  --ink:#1d2b26;         /* 文字 */
+  --ink-soft:#56665f;
+  --board:#2e5b4c;       /* 黒板 */
+  --board-deep:#234639;
+  --frame:#b58553;       /* 木枠 */
+  --chalk:#f7f5ee;       /* 白チョーク */
+  --accent:#f6d24a;      /* 黄チョーク */
+  --miss:#d9534a;
+  --hit:#2f8f5f;
+  --panel:#f4f7f5;
+  --line:#b9c6bf;
+  --f-display:"Yusei Magic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--wall);color:var(--ink);font-family:var(--f-body);font-weight:500;font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
+[hidden]{display:none !important}
+.app{max-width:560px;margin:0 auto;min-height:100%;padding:12px 16px 24px;display:flex;flex-direction:column;gap:12px}
+
+.top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.top h1{font-family:var(--f-display);font-weight:400;font-size:20px;margin:0;margin-right:auto;letter-spacing:.04em}
+.score{display:flex;gap:6px}
+.chip{border:2px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px;font-weight:700;background:var(--panel);max-width:9.5em;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.chip.on{border-color:var(--ink);background:var(--accent)}
+
+button{font-family:inherit;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;border-radius:12px;border:2px solid var(--ink);background:var(--panel);padding:10px 16px;min-height:44px}
+button.main{background:var(--accent);box-shadow:0 3px 0 var(--ink)}
+button.main:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+button.small{font-size:13px;padding:4px 10px;min-height:34px;border-width:1.5px}
+button:focus-visible,input:focus-visible{outline:3px solid #2b7de9;outline-offset:2px}
+
+input[type=text]{font-family:inherit;font-size:18px;font-weight:700;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:12px;padding:8px 12px;min-height:46px;width:100%;min-width:0}
+input.masked{-webkit-text-security:disc;text-security:disc}
+label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-bottom:2px}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row > .grow{flex:1;min-width:0}
+.stack{display:flex;flex-direction:column;gap:12px}
+
+/* 黒板 */
+.board{background:
+    radial-gradient(120% 80% at 20% 10%, rgba(255,255,255,.07), transparent 60%),
+    radial-gradient(90% 70% at 85% 90%, rgba(255,255,255,.05), transparent 60%),
+    var(--board);
+  border:10px solid var(--frame);border-radius:8px;
+  box-shadow:inset 0 0 0 2px var(--board-deep), 0 6px 14px rgba(29,43,38,.25);
+  position:relative}
+.board canvas{display:block;width:100%;aspect-ratio:4/3;touch-action:none;cursor:crosshair}
+.board.look canvas{cursor:default}
+.board::after{content:"";position:absolute;left:14px;right:14px;bottom:-10px;height:4px;background:rgba(0,0,0,.18);border-radius:2px}
+
+.prompt{text-align:left}
+.prompt .who{font-size:13px;font-weight:700;color:var(--ink-soft)}
+.prompt .what{font-family:var(--f-display);font-size:22px;line-height:1.35;text-wrap:balance}
+.prompt .what b{font-weight:400;background:var(--accent);padding:0 .25em;border-radius:6px}
+
+/* 道具 */
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.swatch{width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;border:2px solid var(--ink)}
+.swatch[aria-pressed=true]{box-shadow:0 0 0 3px var(--wall),0 0 0 6px var(--ink)}
+.size{width:40px;min-height:36px;height:36px;padding:0;display:grid;place-items:center}
+.size i{display:block;background:var(--ink);border-radius:50%}
+.tools button[aria-pressed=true]:not(.swatch){background:var(--ink);color:var(--chalk)}
+.tools button[aria-pressed=true] i{background:var(--chalk)}
+.sep{width:1px;height:28px;background:var(--line)}
+
+.msg{min-height:1.6em;font-size:14px;font-weight:700;color:var(--miss);margin:0}
+.msg.ok{color:var(--hit)}
+.tries{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:700;color:var(--ink-soft)}
+.tries i{width:22px;height:8px;border-radius:3px;background:var(--ink);display:block}
+.tries i.used{background:var(--line)}
+
+/* はじめ・受け渡し・結果 */
+.hero{background:var(--board);color:var(--chalk);border:10px solid var(--frame);border-radius:8px;padding:22px 18px;box-shadow:0 6px 14px rgba(29,43,38,.25)}
+.hero h2{font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1.2;margin:0 0 10px;letter-spacing:.05em}
+.hero h2 span{color:var(--accent)}
+.hero ol{margin:0;padding-left:1.3em;font-size:15px}
+.hero li{margin:4px 0}
+.card{background:var(--panel);border:2px solid var(--ink);border-radius:14px;padding:16px}
+.pass{text-align:center;padding:36px 18px}
+.pass p{margin:0 0 6px}
+.pass .big{font-family:var(--f-display);font-size:28px;line-height:1.3;margin-bottom:16px;overflow-wrap:anywhere}
+.verdict{font-family:var(--f-display);font-size:30px;line-height:1.2;margin:0}
+.verdict.ok{color:var(--hit)}
+.verdict.ng{color:var(--miss)}
+.word{font-family:var(--f-display);font-size:26px;margin:4px 0 12px;overflow-wrap:anywhere}
+.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@media (prefers-reduced-motion:reduce){.shake{animation:none}button.main:active{transform:none}}
+
+.chain{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.chain li{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:6px;font-size:13px}
+.chain img{display:block;max-width:100%;width:100%;border-radius:6px}
+.chain .w{font-family:var(--f-display);font-size:18px;overflow-wrap:anywhere}
+.chain .meta{color:var(--ink-soft);overflow-wrap:anywhere}
+.final{display:flex;gap:10px}
+.final div{flex:1;min-width:0;text-align:center;border:2px solid var(--line);border-radius:12px;padding:8px;overflow-wrap:anywhere}
+.final div.win{border-color:var(--ink);background:var(--accent)}
+.final strong{display:block;font-size:30px;font-variant-numeric:tabular-nums;line-height:1.2}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>おえかきしりとり</h1>
+    <div class="score" id="score" hidden>
+      <span class="chip" id="chip0"></span>
+      <span class="chip" id="chip1"></span>
+    </div>
+    <button class="small" id="btnEnd" type="button" hidden>おわる</button>
+  </header>
+
+  <!-- はじめ -->
+  <section id="p-start" class="stack">
+    <div class="hero">
+      <h2>えで つなぐ<br><span>しりとり</span></h2>
+      <ol>
+        <li>えを かいて、こたえを ひらがなで いれる</li>
+        <li>あいてに わたす。あいては えを みて こたえを あてる（3かいまで）</li>
+        <li>こうたいして、こたえの さいごの もじから はじまる えを かく</li>
+      </ol>
+    </div>
+    <div class="card stack">
+      <div class="row">
+        <div class="grow"><label for="name0">さきに かく ひと</label><input type="text" id="name0" value="ひとりめ" maxlength="10" autocomplete="off"></div>
+        <div class="grow"><label for="name1">さきに あてる ひと</label><input type="text" id="name1" value="ふたりめ" maxlength="10" autocomplete="off"></div>
+      </div>
+      <button class="main" id="btnStart" type="button">はじめる</button>
+    </div>
+  </section>
+
+  <!-- 黒板（描く・当てる・結果で共通） -->
+  <section id="stage" class="stack" hidden>
+    <div class="prompt">
+      <div class="who" id="who"></div>
+      <div class="what" id="what"></div>
+    </div>
+    <div class="board" id="board"><canvas id="cv" width="800" height="600" aria-label="おえかきの こくばん"></canvas></div>
+  </section>
+
+  <!-- 描く -->
+  <section id="p-draw" class="stack" hidden>
+    <div class="tools" id="tools">
+      <span id="swatches" class="tools"></span>
+      <span class="sep"></span>
+      <button class="size" type="button" data-size="6" aria-label="ほそい"><i style="width:6px;height:6px"></i></button>
+      <button class="size" type="button" data-size="14" aria-label="ふつう"><i style="width:12px;height:12px"></i></button>
+      <button class="size" type="button" data-size="30" aria-label="ふとい"><i style="width:20px;height:20px"></i></button>
+      <span class="sep"></span>
+      <button class="small" type="button" id="btnEraser" aria-pressed="false">けしごむ</button>
+      <button class="small" type="button" id="btnUndo">1つ もどす</button>
+      <button class="small" type="button" id="btnClear">ぜんぶ けす</button>
+    </div>
+    <div>
+      <label for="answer">こたえ（ひらがなで。あいてに みせないでね）</label>
+      <div class="row">
+        <div class="grow"><input type="text" id="answer" class="masked" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
+        <button class="small" type="button" id="btnPeek" aria-pressed="false" style="min-height:46px">みる</button>
+      </div>
+    </div>
+    <p class="msg" id="drawMsg" role="alert"></p>
+    <button class="main" id="btnRegister" type="button">きめて あいてに わたす</button>
+  </section>
+
+  <!-- 受け渡し -->
+  <section id="p-handoff" class="card pass" hidden>
+    <p>あいてに わたしてね</p>
+    <div class="big" id="passName"></div>
+    <button class="main" id="btnReveal" type="button">えを みる</button>
+  </section>
+
+  <!-- 当てる -->
+  <section id="p-guess" class="stack" hidden>
+    <div class="tries" id="tries" aria-live="polite"></div>
+    <div>
+      <label for="guess">こたえ（ひらがなで）</label>
+      <div class="row">
+        <div class="grow"><input type="text" id="guess" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send"></div>
+        <button class="main" id="btnGuess" type="button">こたえる</button>
+      </div>
+    </div>
+    <p class="msg" id="guessMsg" role="alert"></p>
+  </section>
+
+  <!-- 結果 -->
+  <section id="p-result" class="card" hidden>
+    <p class="verdict" id="verdict"></p>
+    <div class="word" id="resultWord"></div>
+    <button class="main" id="btnNext" type="button"></button>
+  </section>
+
+  <!-- 終了 -->
+  <section id="p-end" class="stack" hidden>
+    <div class="card stack">
+      <p class="verdict" id="endTitle"></p>
+      <div class="final" id="final"></div>
+      <button class="main" id="btnAgain" type="button">もういちど あそぶ</button>
+    </div>
+    <ol class="chain" id="chain"></ol>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var MAX_TRIES = 3;
+  var COLORS = [["しろ","#f7f5ee"],["あか","#f0736a"],["きいろ","#f6d24a"],["あお","#7cc4f0"],["みどり","#a4dc8a"],["だいだい","#f5a25a"]];
+  var SMALL = {"ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","っ":"つ","ゃ":"や","ゅ":"ゆ","ょ":"よ","ゎ":"わ"};
+  var $ = function(id){ return document.getElementById(id); };
+
+  function fresh(){
+    return {phase:"start", names:["ひとりめ","ふたりめ"], scores:[0,0], drawer:0, need:null,
+            answer:"", tries:0, history:[], strokes:[], last:null, loser:null};
+  }
+  var S = fresh();
+  var pen = {color:COLORS[0][1], size:14, eraser:false};
+  var confirmN = null, endArmed = 0;
+
+  /* ---------- 言葉の判定 ---------- */
+  function norm(s){
+    return String(s || "").replace(/[\s　]/g, "").replace(/[ァ-ヶ]/g, function(c){
+      return String.fromCharCode(c.charCodeAt(0) - 0x60);
+    });
+  }
+  function lastChar(w){
+    var i = w.length - 1;
+    while (i > 0 && w[i] === "ー") i--;
+    var c = w[i];
+    return SMALL[c] || c;
+  }
+  function checkWord(w, need, used){
+    if (!w) return "こたえを ひらがなで いれてね。";
+    if (!/^[ぁ-ゖー]+$/.test(w) || w[0] === "ー") return "ひらがなだけで いれてね。";
+    if (w.length < 2) return "2もじ いじょうの ことばに してね。";
+    if (need && (SMALL[w[0]] || w[0]) !== need) return "「" + need + "」から はじまる ことばに してね。";
+    if (used.indexOf(w) >= 0) return "「" + w + "」は もう でたよ。ほかの ことばに してね。";
+    return "";
+  }
+
+  /* ---------- 黒板 ---------- */
+  var cv = $("cv"), ctx = cv.getContext("2d"), cur = null;
+  function paint(st, from){
+    ctx.save();
+    ctx.globalCompositeOperation = st.e ? "destination-out" : "source-over";
+    ctx.strokeStyle = ctx.fillStyle = st.c;
+    ctx.lineWidth = st.w; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    var p = st.p;
+    if (p.length === 1){
+      ctx.beginPath(); ctx.arc(p[0][0], p[0][1], st.w / 2, 0, Math.PI * 2); ctx.fill();
+    } else {
+      var i = Math.max(1, from || 1);
+      ctx.beginPath(); ctx.moveTo(p[i-1][0], p[i-1][1]);
+      for (; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function redraw(){
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    S.strokes.forEach(function(st){ paint(st); });
+  }
+  function pos(e){
+    var r = cv.getBoundingClientRect();
+    return [Math.round((e.clientX - r.left) * cv.width / r.width), Math.round((e.clientY - r.top) * cv.height / r.height)];
+  }
+  cv.addEventListener("pointerdown", function(e){
+    if (S.phase !== "draw") return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    cur = {c:pen.color, w:pen.eraser ? pen.size * 2.5 : pen.size, e:pen.eraser, p:[pos(e)]};
+    S.strokes.push(cur); paint(cur);
+  });
+  cv.addEventListener("pointermove", function(e){
+    if (!cur) return;
+    e.preventDefault();
+    var q = pos(e), l = cur.p[cur.p.length - 1];
+    if (q[0] === l[0] && q[1] === l[1]) return;
+    cur.p.push(q);
+    if (cur.p.length === 2) redrawLast(); else paint(cur, cur.p.length - 1);
+  });
+  function redrawLast(){ if (cur.e) paint(cur, 1); else paint(cur, 1); }
+  function endStroke(){ cur = null; }
+  cv.addEventListener("pointerup", endStroke);
+  cv.addEventListener("pointercancel", endStroke);
+
+  function thumb(){
+    var t = document.createElement("canvas"); t.width = 320; t.height = 240;
+    var c = t.getContext("2d");
+    c.fillStyle = "#2e5b4c"; c.fillRect(0, 0, 320, 240);
+    c.drawImage(cv, 0, 0, 320, 240);
+    try { return t.toDataURL("image/jpeg", 0.8); } catch (_) { return ""; }
+  }
+
+  /* ---------- 道具 ---------- */
+  COLORS.forEach(function(c, i){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "swatch"; b.style.background = c[1];
+    b.setAttribute("aria-label", c[0]);
+    b.dataset.color = c[1];
+    b.addEventListener("click", function(){ pen.color = c[1]; pen.eraser = false; syncTools(); });
+    $("swatches").appendChild(b);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".size"), function(b){
+    b.addEventListener("click", function(){ pen.size = +b.dataset.size; syncTools(); });
+  });
+  $("btnEraser").addEventListener("click", function(){ pen.eraser = !pen.eraser; syncTools(); });
+  $("btnUndo").addEventListener("click", function(){ S.strokes.pop(); redraw(); });
+  $("btnClear").addEventListener("click", function(){ S.strokes = []; redraw(); });
+  function syncTools(){
+    Array.prototype.forEach.call(document.querySelectorAll(".swatch"), function(b){
+      b.setAttribute("aria-pressed", String(!pen.eraser && b.dataset.color === pen.color));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".size"), function(b){
+      b.setAttribute("aria-pressed", String(+b.dataset.size === pen.size));
+    });
+    $("btnEraser").setAttribute("aria-pressed", String(pen.eraser));
+  }
+  $("btnPeek").addEventListener("click", function(){
+    var on = $("answer").classList.toggle("masked");
+    $("btnPeek").textContent = on ? "みる" : "かくす";
+    $("btnPeek").setAttribute("aria-pressed", String(!on));
+  });
+
+  /* ---------- 進行 ---------- */
+  function guesser(){ return 1 - S.drawer; }
+  function setPrompt(who, parts){
+    $("who").textContent = who;
+    var el = $("what"); el.textContent = "";
+    parts.forEach(function(p){
+      if (typeof p === "string") el.appendChild(document.createTextNode(p));
+      else { var b = document.createElement("b"); b.textContent = p.b; el.appendChild(b); }
+    });
+  }
+  function show(id, on){ $(id).hidden = !on; }
+
+  function render(){
+    var ph = S.phase;
+    show("p-start", ph === "start");
+    show("stage", ph === "draw" || ph === "guess" || ph === "result");
+    show("p-draw", ph === "draw");
+    show("p-handoff", ph === "handoff");
+    show("p-guess", ph === "guess");
+    show("p-result", ph === "result");
+    show("p-end", ph === "end");
+    show("score", ph !== "start" && ph !== "end");
+    show("btnEnd", ph !== "start" && ph !== "end");
+    $("board").classList.toggle("look", ph !== "draw");
+
+    var active = (ph === "draw") ? S.drawer : guesser();
+    [0, 1].forEach(function(i){
+      var c = $("chip" + i);
+      c.textContent = S.names[i] + " " + S.scores[i];
+      c.classList.toggle("on", i === active);
+    });
+
+    if (ph === "draw"){
+      setPrompt(S.names[S.drawer] + "さんが かく ばん",
+        S.need ? [{b:S.need}, " から はじまる ものを かこう"] : ["すきな ものを かこう"]);
+    } else if (ph === "handoff"){
+      $("passName").textContent = S.names[guesser()] + "さんへ";
+    } else if (ph === "guess"){
+      setPrompt(S.names[guesser()] + "さんが あてる ばん",
+        S.need ? [{b:S.need}, " から はじまる ことばだよ。なんの え？"] : ["なんの えかな？"]);
+      var t = $("tries"); t.textContent = "";
+      t.appendChild(document.createTextNode("のこり"));
+      for (var i = 0; i < MAX_TRIES; i++){
+        var d = document.createElement("i"); if (i >= MAX_TRIES - S.tries) d.className = "used"; t.appendChild(d);
+      }
+      t.appendChild(document.createTextNode((MAX_TRIES - S.tries) + "かい" + (S.tries >= 2 ? "　こたえは " + S.answer.length + "もじ" : "")));
+    } else if (ph === "result"){
+      var ok = S.last && S.last.ok;
+      setPrompt(S.names[S.drawer] + "さんの え", ["こたえは ", {b:S.answer}]);
+      $("verdict").textContent = ok ? "せいかい！" : "ざんねん";
+      $("verdict").className = "verdict " + (ok ? "ok" : "ng");
+      $("resultWord").textContent = (ok ? S.names[guesser()] + "さんに 1てん" : "こたえは「" + S.answer + "」でした");
+      $("btnNext").textContent = "つぎへ：「" + lastChar(S.answer) + "」から " + S.names[guesser()] + "さんが かく";
+    } else if (ph === "end"){
+      renderEnd();
+    }
+  }
+
+  function renderEnd(){
+    var win = -1;
+    if (S.loser !== null) win = 1 - S.loser;
+    else if (S.scores[0] !== S.scores[1]) win = S.scores[0] > S.scores[1] ? 0 : 1;
+    $("endTitle").className = "verdict";
+    $("endTitle").textContent = S.loser !== null
+      ? "「ん」が ついたので " + S.names[win] + "さんの かち"
+      : (win < 0 ? "ひきわけ" : S.names[win] + "さんの かち");
+    var f = $("final"); f.textContent = "";
+    [0, 1].forEach(function(i){
+      var d = document.createElement("div"); if (i === win) d.className = "win";
+      d.appendChild(document.createTextNode(S.names[i]));
+      var s = document.createElement("strong"); s.textContent = S.scores[i] + "もん せいかい"; d.appendChild(s);
+      f.appendChild(d);
+    });
+    var ch = $("chain"); ch.textContent = "";
+    S.history.forEach(function(h){
+      var li = document.createElement("li");
+      if (h.img){ var im = document.createElement("img"); im.src = h.img; im.alt = h.word + "の え"; li.appendChild(im); }
+      var w = document.createElement("div"); w.className = "w"; w.textContent = h.word; li.appendChild(w);
+      var m = document.createElement("div"); m.className = "meta";
+      m.textContent = S.names[h.by] + "さんの え・" + (h.ok === null ? "「ん」で おわり" : (h.ok ? "せいかい" : "ざんねん"));
+      li.appendChild(m); ch.appendChild(li);
+    });
+  }
+
+  $("btnStart").addEventListener("click", function(){
+    S = fresh();
+    S.names = [($("name0").value.trim() || "ひとりめ"), ($("name1").value.trim() || "ふたりめ")];
+    S.phase = "draw"; redraw(); render();
+  });
+
+  function register(){
+    var w = norm($("answer").value), msg = $("drawMsg");
+    msg.className = "msg";
+    if (!S.strokes.length){ msg.textContent = "さきに えを かいてね。"; return; }
+    var err = checkWord(w, S.need, S.history.map(function(h){ return h.word; }));
+    if (err){ msg.textContent = err; confirmN = null; return; }
+    if (lastChar(w) === "ん"){
+      if (confirmN !== w){
+        confirmN = w;
+        msg.textContent = "「ん」で おわる ことばだよ。もういちど おすと、あなたの まけで おわるよ。";
+        return;
+      }
+      S.history.push({word:w, img:thumb(), by:S.drawer, ok:null});
+      S.loser = S.drawer; S.phase = "end";
+    } else {
+      S.answer = w; S.tries = 0; S.phase = "handoff";
+    }
+    confirmN = null; msg.textContent = ""; $("answer").value = "";
+    $("answer").classList.add("masked"); $("btnPeek").textContent = "みる";
+    render(); window.scrollTo(0, 0);
+  }
+  $("btnRegister").addEventListener("click", register);
+  $("answer").addEventListener("keydown", function(e){ if (e.key === "Enter" && !e.isComposing) register(); });
+
+  $("btnReveal").addEventListener("click", function(){
+    S.phase = "guess"; $("guess").value = ""; $("guessMsg").textContent = ""; render();
+  });
+
+  function settle(ok){
+    if (ok) S.scores[guesser()]++;
+    S.history.push({word:S.answer, img:thumb(), by:S.drawer, ok:ok});
+    S.last = {ok:ok}; S.phase = "result"; render();
+  }
+  function guess(){
+    var g = norm($("guess").value), msg = $("guessMsg");
+    if (!g){ msg.textContent = "こたえを いれてね。"; return; }
+    if (g === S.answer){ msg.textContent = ""; settle(true); return; }
+    S.tries++;
+    if (S.tries >= MAX_TRIES){ msg.textContent = ""; settle(false); return; }
+    msg.textContent = "「" + g + "」では ないよ。";
+    $("guess").value = "";
+    var b = $("board"); b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+    render();
+  }
+  $("btnGuess").addEventListener("click", guess);
+  $("guess").addEventListener("keydown", function(e){ if (e.key === "Enter" && !e.isComposing) guess(); });
+
+  $("btnNext").addEventListener("click", function(){
+    S.need = lastChar(S.answer);
+    S.drawer = guesser();
+    S.answer = ""; S.tries = 0; S.strokes = []; S.last = null;
+    S.phase = "draw";
+    redraw(); $("drawMsg").textContent = ""; render(); window.scrollTo(0, 0);
+  });
+
+  $("btnEnd").addEventListener("click", function(){
+    var b = $("btnEnd");
+    if (Date.now() < endArmed){ endArmed = 0; b.textContent = "おわる"; S.phase = "end"; render(); return; }
+    endArmed = Date.now() + 3000; b.textContent = "もういちど おすと おわる";
+    setTimeout(function(){ if (endArmed && Date.now() >= endArmed){ endArmed = 0; b.textContent = "おわる"; } }, 3100);
+  });
+  $("btnAgain").addEventListener("click", function(){
+    var n = S.names; S = fresh(); $("name0").value = n[0]; $("name1").value = n[1];
+    redraw(); render();
+  });
+
+  /* ---------- 起動 ---------- */
+  function start(data){
+    if (data && data.phase && Array.isArray(data.names)){
+      S = data;
+      $("name0").value = S.names[0]; $("name1").value = S.names[1];
+    }
+    syncTools(); redraw(); render();
+  }
+  var hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(function(){ return S; });
+  if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+
+  window.__shiritori = {norm:norm, lastChar:lastChar, checkWord:checkWord};
+})();
+</script>
+</body>
+</html>
