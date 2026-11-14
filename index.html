@@ -140,7 +140,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
         <li>えを かいて、こたえを ひらがなで いれる</li>
         <li>あいてに わたす。あいては えを みて こたえを あてる（3かいまで）</li>
         <li>こうたいして、こたえの さいごの もじから はじまる えを かく</li>
-        <li>はやく あたるほど、ふたりとも てんが ふえる（3てん・2てん・1てん）</li>
+        <li>はやく あたるほど てんが ふえる。かいた ひとは 3・2・1てん、あてた ひとは 2・1・0てん</li>
       </ol>
     </div>
     <div id="resume" class="card stack" hidden>
@@ -503,7 +503,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       setPrompt(S.names[S.drawer] + "さんの え", ["こたえは ", {b:S.answer}]);
       $("verdict").textContent = ok ? "せいかい！" : "ざんねん";
       $("verdict").className = "verdict " + (ok ? "ok" : "ng");
-      $("resultWord").textContent = (ok ? "ふたりとも " + S.last.pts + "てん" : "こたえは「" + S.answer + "」でした");
+      $("resultWord").textContent = (ok ? S.names[S.drawer] + "さん " + S.last.pts + "てん・" + S.names[guesser()] + "さん " + S.last.gpts + "てん" : "こたえは「" + S.answer + "」でした");
       $("btnNext").textContent = "つぎへ：" + needLabel(lastChar(S.answer)) + "から " + S.names[guesser()] + "さんが かく";
     } else if (ph === "end"){
       renderEnd();
@@ -517,7 +517,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
     $("endTitle").className = "verdict";
     $("endTitle").textContent = S.loser !== null
       ? "「ん」が ついたので " + S.names[win] + "さんの かち"
-      : (win < 0 ? "おしまい！" : S.names[win] + "さんの かち");
+      : (win < 0 ? "ひきわけ" : S.names[win] + "さんの かち");
     var f = $("final"); f.textContent = "";
     [0, 1].forEach(function(i){
       var d = document.createElement("div"); if (i === win) d.className = "win";
@@ -535,7 +535,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       if (h.img){ var im = document.createElement("img"); im.src = h.img; im.alt = h.word + "の え"; li.appendChild(im); }
       var w = document.createElement("div"); w.className = "w"; w.textContent = h.word; li.appendChild(w);
       var m = document.createElement("div"); m.className = "meta";
-      m.textContent = (n + 1) + "まいめ・" + names[h.by] + "さんの え・" + (h.ok === null ? "「ん」で おわり" : (h.ok ? "せいかい" + (h.pts ? "（" + h.pts + "てん）" : "") : "ざんねん"));
+      m.textContent = (n + 1) + "まいめ・" + names[h.by] + "さんの え・" + (h.ok === null ? "「ん」で おわり" : (h.ok ? "せいかい" + (h.gpts !== undefined ? "（かいた ひと " + h.pts + "てん・あてた ひと " + h.gpts + "てん）" : (h.pts ? "（" + h.pts + "てん）" : "")) : "ざんねん"));
       li.appendChild(m); ch.appendChild(li);
     });
   }
@@ -634,11 +634,11 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   });
 
   function settle(ok){
-    /* 描いた人と当てた人の両方に同じ点。1回目3点、2回目2点、3回目1点、外れ・ギブアップは0点。 */
-    var pts = ok ? MAX_TRIES - S.tries : 0;
-    S.scores[0] += pts; S.scores[1] += pts;
-    S.history.push({word:S.answer, img:thumb(), by:S.drawer, ok:ok, pts:pts});
-    S.last = {ok:ok, pts:pts}; S.phase = "result"; saveGame(); render();
+    /* 描いた人：1回目3点・2回目2点・3回目1点。当てた人はそれより1点少ない。外れ・ギブアップは0点。 */
+    var pts = ok ? MAX_TRIES - S.tries : 0, gpts = ok ? pts - 1 : 0;
+    S.scores[S.drawer] += pts; S.scores[guesser()] += gpts;
+    S.history.push({word:S.answer, img:thumb(), by:S.drawer, ok:ok, pts:pts, gpts:gpts});
+    S.last = {ok:ok, pts:pts, gpts:gpts}; S.phase = "result"; saveGame(); render();
   }
   function guess(){
     var g = norm($("guess").value), msg = $("guessMsg");
