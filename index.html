@@ -117,6 +117,10 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 .pastlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .pastlist button{width:100%;text-align:left;font-size:14px;overflow-wrap:anywhere}
 .left{align-self:flex-start}
+.rules h3{font-family:var(--f-display);font-weight:400;font-size:18px;margin:0 0 4px}
+.rules ul,.rules ol{margin:0;padding-left:1.3em}
+.rules li{margin:3px 0}
+.rules b{background:var(--accent);padding:0 .25em;border-radius:6px;font-weight:700}
 .final strong{display:block;font-size:30px;font-variant-numeric:tabular-nums;line-height:1.2}
 </style>
 </head>
@@ -128,6 +132,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       <span class="chip" id="chip0"></span>
       <span class="chip" id="chip1"></span>
     </div>
+    <button class="small" id="btnRules" type="button">あそびかた</button>
     <button class="small" id="btnLog" type="button" hidden>これまでの え</button>
     <button class="small" id="btnEnd" type="button" hidden>おわる</button>
   </header>
@@ -222,6 +227,58 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
     <button class="main" id="btnNext" type="button"></button>
   </section>
 
+  <!-- 遊び方（ルール） -->
+  <section id="p-rules" class="stack rules" hidden>
+    <div class="row">
+      <h2 class="sub grow">あそびかた</h2>
+      <button class="small" id="btnRulesBack" type="button">もどる</button>
+    </div>
+    <div class="card">
+      <h3>ながれ</h3>
+      <ol>
+        <li>えを かいて、こたえを ひらがなで いれる</li>
+        <li>あいてに わたす。あいては えを みて こたえを あてる（3かいまで）</li>
+        <li>こうたいして、こたえの さいごの もじから はじまる えを かく</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>てんすう</h3>
+      <ul>
+        <li>1かいめで せいかい：かいた ひと <b>3てん</b>、あてた ひと <b>2てん</b></li>
+        <li>2かいめで せいかい：かいた ひと <b>2てん</b>、あてた ひと <b>1てん</b></li>
+        <li>3かいめで せいかい：かいた ひと <b>1てん</b>、あてた ひと <b>0てん</b></li>
+        <li>はずれ・ぎぶあっぷ：ふたりとも 0てん</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>ひんと</h3>
+      <ul>
+        <li>1かい まちがえると、もじの かずが わかる</li>
+        <li>2かい まちがえると、もじが すこし でる</li>
+        <li>わからない ときは「ぎぶあっぷ」を 2かい おすと こたえが でる</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>しりとりの きまり</h3>
+      <ul>
+        <li>「ん」で おわる ことばを いれた ひとの まけ</li>
+        <li>おなじ ことばは 2かい つかえない</li>
+        <li>ちいさい もじは おおきい もじに する（でんしゃ → や）</li>
+        <li>のばす おと「ー」は ひとつ まえの もじを つかう（こーひー → ひ）</li>
+        <li>てんてん・まるは とっても いい（りんご → ご か こ、らっぱ → ぱ か は）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>きろく</h3>
+      <ul>
+        <li>1まい おわるごとに、じどうで のこる</li>
+        <li>とちゅうで とじても「つづきから あそぶ」で もどれる</li>
+        <li>「これまでの え」「まえの しりとり」で みかえせる</li>
+        <li>きろくは この たんまつの なかだけに のこる</li>
+      </ul>
+    </div>
+  </section>
+
   <!-- これまでの絵・前のしりとり -->
   <section id="p-log" class="stack" hidden>
     <div class="row">
@@ -258,7 +315,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   }
   var S = fresh();
   var pen = {color:COLORS[0][1], size:14, eraser:false};
-  var confirmN = null, endArmed = 0, giveArmed = 0, delArmed = 0, logView = null;
+  var confirmN = null, endArmed = 0, giveArmed = 0, delArmed = 0, logView = null, rulesOpen = false;
   var KEY = "oekaki-shiritori-games-v1", CUR = "oekaki-shiritori-current-v1", KEEP = 20;
 
   /* ---------- 記録（この端末のブラウザの中だけ） ---------- */
@@ -450,6 +507,11 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   function render(){
     var ph = S.phase;
     persist();
+    if (rulesOpen){
+      ["p-start","stage","p-draw","p-handoff","p-guess","p-result","p-end","p-log","score","btnEnd","btnLog","btnRules"].forEach(function(id){ show(id, false); });
+      show("p-rules", true); return;
+    }
+    show("p-rules", false); show("btnRules", true);
     if (logView){
       ["p-start","stage","p-draw","p-handoff","p-guess","p-result","p-end","score","btnEnd","btnLog"].forEach(function(id){ show(id, false); });
       show("p-log", true); renderLog(); return;
@@ -574,6 +636,8 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   $("btnLog").addEventListener("click", function(){
     openLog({title:"これまでの え", history:S.history, names:S.names, t:0});
   });
+  $("btnRules").addEventListener("click", function(){ rulesOpen = true; render(); window.scrollTo(0, 0); });
+  $("btnRulesBack").addEventListener("click", function(){ rulesOpen = false; render(); window.scrollTo(0, 0); });
   $("btnLogBack").addEventListener("click", function(){ logView = null; render(); window.scrollTo(0, 0); });
   $("btnLogDel").addEventListener("click", function(){
     var b = $("btnLogDel");
