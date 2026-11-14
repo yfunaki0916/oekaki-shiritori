@@ -240,7 +240,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 (function(){
   "use strict";
   var MAX_TRIES = 3;
-  var COLORS = [["しろ","#f7f5ee"],["あか","#f0736a"],["きいろ","#f6d24a"],["あお","#7cc4f0"],["みどり","#a4dc8a"],["だいだい","#f5a25a"]];
+  var COLORS = [["しろ","#f7f5ee"],["あか","#f0736a"],["きいろ","#f6d24a"],["あお","#7cc4f0"],["みどり","#a4dc8a"],["だいだい","#f5a25a"],["くろ","#1c1c1c"]];
   var SMALL = {"ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","っ":"つ","ゃ":"や","ゅ":"ゆ","ょ":"よ","ゎ":"わ"};
   var $ = function(id){ return document.getElementById(id); };
 
@@ -287,11 +287,22 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
     var c = w[i];
     return SMALL[c] || c;
   }
+  /* 濁点・半濁点を取った文字（ご→こ、ぱ→は）。付いていなければそのまま。 */
+  function plain(c){ return c.normalize("NFD").charAt(0); }
+  function needLabel(need){
+    var a = plain(need);
+    return a !== need ? "「" + need + "」か「" + a + "」" : "「" + need + "」";
+  }
+  function needParts(need, tail){
+    var a = plain(need);
+    return a !== need ? [{b:need}, " か ", {b:a}, tail] : [{b:need}, tail];
+  }
   function checkWord(w, need, used){
     if (!w) return "こたえを ひらがなで いれてね。";
     if (!/^[ぁ-ゖー]+$/.test(w) || w[0] === "ー") return "ひらがなだけで いれてね。";
     if (w.length < 2) return "2もじ いじょうの ことばに してね。";
-    if (need && (SMALL[w[0]] || w[0]) !== need) return "「" + need + "」から はじまる ことばに してね。";
+    var f = SMALL[w[0]] || w[0];
+    if (need && f !== need && f !== plain(need)) return needLabel(need) + "から はじまる ことばに してね。";
     if (used.indexOf(w) >= 0) return "「" + w + "」は もう でたよ。ほかの ことばに してね。";
     return "";
   }
@@ -421,12 +432,12 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 
     if (ph === "draw"){
       setPrompt(S.names[S.drawer] + "さんが かく ばん",
-        S.need ? [{b:S.need}, " から はじまる ものを かこう"] : ["すきな ものを かこう"]);
+        S.need ? needParts(S.need, " から はじまる ものを かこう") : ["すきな ものを かこう"]);
     } else if (ph === "handoff"){
       $("passName").textContent = S.names[guesser()] + "さんへ";
     } else if (ph === "guess"){
       setPrompt(S.names[guesser()] + "さんが あてる ばん",
-        S.need ? [{b:S.need}, " から はじまる ことばだよ。なんの え？"] : ["なんの えかな？"]);
+        S.need ? needParts(S.need, " から はじまる ことばだよ。なんの え？") : ["なんの えかな？"]);
       var t = $("tries"); t.textContent = "";
       t.appendChild(document.createTextNode("のこり"));
       for (var i = 0; i < MAX_TRIES; i++){
@@ -439,7 +450,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       $("verdict").textContent = ok ? "せいかい！" : "ざんねん";
       $("verdict").className = "verdict " + (ok ? "ok" : "ng");
       $("resultWord").textContent = (ok ? S.names[guesser()] + "さんに 1てん" : "こたえは「" + S.answer + "」でした");
-      $("btnNext").textContent = "つぎへ：「" + lastChar(S.answer) + "」から " + S.names[guesser()] + "さんが かく";
+      $("btnNext").textContent = "つぎへ：" + needLabel(lastChar(S.answer)) + "から " + S.names[guesser()] + "さんが かく";
     } else if (ph === "end"){
       renderEnd();
     }
