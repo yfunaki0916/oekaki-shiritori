@@ -8,17 +8,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
-/* 設計：教室の黒板。中央1カラム、黒板が主役で周りは静かに。色はチョークの色だけ。 */
+/* 設計：教室のホワイトボード。中央1カラム、ボードが主役で周りは静かに。色はマーカーの色。 */
 :root{
   color-scheme: light;
   --wall:#dfe6e1;        /* 教室の壁 */
   --ink:#1d2b26;         /* 文字 */
   --ink-soft:#56665f;
-  --board:#2e5b4c;       /* 黒板 */
-  --board-deep:#234639;
-  --frame:#b58553;       /* 木枠 */
-  --chalk:#f7f5ee;       /* 白チョーク */
-  --accent:#f6d24a;      /* 黄チョーク */
+  --board:#fdfdfb;       /* ホワイトボード */
+  --board-deep:#d3dad6;
+  --frame:#a9b3b0;       /* アルミ枠 */
+  --chalk:#f7f5ee;       /* 濃い地の上の文字 */
+  --accent:#f6d24a;      /* 黄マーカー */
   --miss:#d9534a;
   --hit:#2f8f5f;
   --panel:#f4f7f5;
@@ -53,8 +53,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 
 /* 黒板 */
 .board{background:
-    radial-gradient(120% 80% at 20% 10%, rgba(255,255,255,.07), transparent 60%),
-    radial-gradient(90% 70% at 85% 90%, rgba(255,255,255,.05), transparent 60%),
+    linear-gradient(135deg, rgba(29,43,38,.035), transparent 38%),
     var(--board);
   border:10px solid var(--frame);border-radius:8px;
   box-shadow:inset 0 0 0 2px var(--board-deep), 0 6px 14px rgba(29,43,38,.25);
@@ -83,11 +82,14 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 .tries{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:700;color:var(--ink-soft)}
 .tries i{width:22px;height:8px;border-radius:3px;background:var(--ink);display:block}
 .tries i.used{background:var(--line)}
+.hint{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--ink-soft)}
+.hint b{display:grid;place-items:center;width:34px;height:40px;border:2px solid var(--ink);border-radius:8px;background:#fff;font-family:var(--f-display);font-size:22px;font-weight:400;color:var(--ink)}
+.hint b.q{border-style:dashed;border-color:var(--line);color:var(--line)}
 
 /* はじめ・受け渡し・結果 */
-.hero{background:var(--board);color:var(--chalk);border:10px solid var(--frame);border-radius:8px;padding:22px 18px;box-shadow:0 6px 14px rgba(29,43,38,.25)}
+.hero{background:var(--board);color:var(--ink);border:10px solid var(--frame);border-radius:8px;padding:22px 18px;box-shadow:0 6px 14px rgba(29,43,38,.25)}
 .hero h2{font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1.2;margin:0 0 10px;letter-spacing:.05em}
-.hero h2 span{color:var(--accent)}
+.hero h2 span{background:var(--accent);padding:0 .2em;border-radius:8px}
 .hero ol{margin:0;padding-left:1.3em;font-size:15px}
 .hero li{margin:4px 0}
 .card{background:var(--panel);border:2px solid var(--ink);border-radius:14px;padding:16px}
@@ -159,7 +161,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       <div class="who" id="who"></div>
       <div class="what" id="what"></div>
     </div>
-    <div class="board" id="board"><canvas id="cv" width="800" height="600" aria-label="おえかきの こくばん"></canvas></div>
+    <div class="board" id="board"><canvas id="cv" width="800" height="600" aria-label="おえかきの ぼーど"></canvas></div>
   </section>
 
   <!-- 描く -->
@@ -196,6 +198,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   <!-- 当てる -->
   <section id="p-guess" class="stack" hidden>
     <div class="tries" id="tries" aria-live="polite"></div>
+    <div class="hint" id="hint" aria-live="polite" hidden></div>
     <div>
       <label for="guess">こたえ（ひらがなで）</label>
       <div class="row">
@@ -240,7 +243,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
 (function(){
   "use strict";
   var MAX_TRIES = 3;
-  var COLORS = [["しろ","#f7f5ee"],["あか","#f0736a"],["きいろ","#f6d24a"],["あお","#7cc4f0"],["みどり","#a4dc8a"],["だいだい","#f5a25a"],["くろ","#1c1c1c"]];
+  var COLORS = [["くろ","#1c1c1c"],["あか","#e23b3b"],["あお","#2b6fd6"],["みどり","#2a9d55"],["きいろ","#f2c200"],["だいだい","#f08a24"],["ぴんく","#ef6fa5"],["ちゃいろ","#8a5a33"]];
   var SMALL = {"ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","っ":"つ","ゃ":"や","ゅ":"ゆ","ょ":"よ","ゎ":"わ"};
   var $ = function(id){ return document.getElementById(id); };
 
@@ -296,6 +299,18 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   function needParts(need, tail){
     var a = plain(need);
     return a !== need ? [{b:need}, " か ", {b:a}, tail] : [{b:need}, tail];
+  }
+  /* ヒント：1回まちがえると文字数だけ、2回まちがえると一部の文字が出る。出ない文字は空文字。 */
+  function hintChars(answer, tries, known){
+    if (tries < 1) return null;
+    var n = answer.length, open = {};
+    if (tries >= 2){
+      /* 最初の文字がしりとりで分かっているときは、2文字目を出す（2文字の言葉は答えが全部出てしまうので最初の文字） */
+      var first = (known && n >= 3) ? 1 : 0, mid = Math.floor(n / 2);
+      open[first] = true;
+      if (n >= (known ? 5 : 4) && mid !== first) open[mid] = true;
+    }
+    return answer.split("").map(function(c, i){ return open[i] ? c : ""; });
   }
   function checkWord(w, need, used){
     if (!w) return "こたえを ひらがなで いれてね。";
@@ -356,7 +371,7 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
   function thumb(){
     var t = document.createElement("canvas"); t.width = 320; t.height = 240;
     var c = t.getContext("2d");
-    c.fillStyle = "#2e5b4c"; c.fillRect(0, 0, 320, 240);
+    c.fillStyle = "#fdfdfb"; c.fillRect(0, 0, 320, 240);
     c.drawImage(cv, 0, 0, 320, 240);
     try { return t.toDataURL("image/jpeg", 0.6); } catch (_) { return ""; }
   }
@@ -443,7 +458,16 @@ label{font-size:13px;font-weight:700;color:var(--ink-soft);display:block;margin-
       for (var i = 0; i < MAX_TRIES; i++){
         var d = document.createElement("i"); if (i >= MAX_TRIES - S.tries) d.className = "used"; t.appendChild(d);
       }
-      t.appendChild(document.createTextNode((MAX_TRIES - S.tries) + "かい" + (S.tries >= 2 ? "　こたえは " + S.answer.length + "もじ" : "")));
+      t.appendChild(document.createTextNode((MAX_TRIES - S.tries) + "かい"));
+      var hb = $("hint"), hc = hintChars(S.answer, S.tries, !!S.need);
+      hb.hidden = !hc; hb.textContent = "";
+      if (hc){
+        hb.appendChild(document.createTextNode("ひんと"));
+        hc.forEach(function(ch){
+          var e = document.createElement("b"); e.textContent = ch || "？"; if (!ch) e.className = "q"; hb.appendChild(e);
+        });
+        hb.appendChild(document.createTextNode(S.answer.length + "もじ"));
+      }
     } else if (ph === "result"){
       var ok = S.last && S.last.ok;
       setPrompt(S.names[S.drawer] + "さんの え", ["こたえは ", {b:S.answer}]);
